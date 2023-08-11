@@ -5,3 +5,4 @@ output.wav
 test_audio_code.py
 .idea
 Alternative.txt
+.gitignore
