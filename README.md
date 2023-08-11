@@ -15,5 +15,5 @@ I recommend using a virtual environment.
 
 # Functionalities
 Move your cursor by hovering an object in front of your webcam.
-Produce a sufficiently high sound and left-click.
+Produce a sufficiently high sound to left-click.
 Coming next: distinction of left and right clicks through DFT.
