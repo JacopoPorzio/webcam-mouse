@@ -1,4 +1,4 @@
-# Use your webcam as a mouse!
+# Use your webcam and voice as a mouse!
 This software is for all the people that are tired of using conventional items such as mice.
 
 If you're scared of those strange objects, say no more and greet the future.
@@ -24,9 +24,12 @@ you just have to uncomment ```webcam_reader.calibrate_hue(frame)``` and play wit
 
 I've used the **HSV color representation**, because in my experience I've always found it the easiest to work with, when it comes to recognise colours.
 
-| ![HSV wheel](media/hsv_wheel.jpg) |
-|:--:| 
-| *Hue wheel* |
+
+<p align="center>
+    <img src="media/hsv_wheel.jpg" alt=Hue wheel>
+    <em>Hue wheel</em>
+</p>
+
 
 Results highly depend on the illumination of the environment - it won't work in pitch darkness, and neither will it on the surface of the Sun - and the webcam quality as well.
 
