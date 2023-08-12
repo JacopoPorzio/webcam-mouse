@@ -2,9 +2,8 @@ import cv2
 import mouse
 import numpy as np
 import screeninfo
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import pyaudio
-# import librosa
 import struct
 
 
