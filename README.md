@@ -12,13 +12,25 @@ Just clone the repo and run ```pip install -r requirements.txt```.
 I recommend using a virtual environment.
 
 
-# How it works
---- WIP SECTION ---
-
-
 # Functionalities
 Move your cursor by hovering an object in front of your webcam.
 
-Produce a sufficiently high sound to left-click.
+Produce a sufficiently loud enough to press a mouse button: you'll left click if its frequency is under 1500 Hz, right click otherwise.
 
-Coming next: distinction of left and right clicks through DFT.
+
+# *Caveat*
+I coded the program to recognise a yellow tennis ball. Should you want a different colour to be recognised,
+you just have to uncomment ```webcam_reader.calibrate_hue(frame)``` and play with the hue thresholds.
+
+I've used the **HSV color representation**, because in my experience I've always found it the easiest to work with, when it comes to recognise colours.
+
+| ![HSV wheel](media/hsv_wheel.jpg) |
+|:--:| 
+| *Hue wheel* |
+
+Results highly depend on the illumination of the environment - it won't work in pitch darkness, and neither will it on the surface of the Sun - and the webcam quality as well.
+
+
+# Future work
+Easier parameters customization.
+Better object recognition and outlier identification.
