@@ -69,7 +69,7 @@ class WebcamReader:
             cY = y_centers[k_max]
             img = cv2.line(hue_channel, (cX - 10, cY), (cX + 10, cY), (0, 0, 255), 5)
             img = cv2.line(img, (cX, cY - 10), (cX, cY + 10), (0, 0, 255), 5)
-            img = np.flip(img, axis=1)
+            # img = np.flip(img, axis=1)
             # cv2.imshow("cen_vis", img)
         else:
             cX = -100
@@ -125,7 +125,6 @@ class MicrophoneReader:
         # Get the corresponding frequency.
         max_amplitude_freq = frequencies[max_amplitude_idx]
         max_amplitude = dft[max_amplitude_idx]
-        # print(f'{max_amplitude_freq} [Hz] and {max_amplitude} [-]')
         # If frequency < threshold: left click,
         # if frequency > threshold: right click
 
@@ -135,10 +134,8 @@ class MicrophoneReader:
                         (max_amplitude_freq <= self._threshold_frequency) * 1 +
                         (max_amplitude_freq > self._threshold_frequency) * 2
                 )
-        )
+                )
 
-        # action = 1 * (max_amplitude > self._threshold_amplitude)
-        # action = 0
         return action, [round(max_amplitude, 2), round(max_amplitude_freq, 2)]
 
     def kill_stream(self):
@@ -148,16 +145,15 @@ class MicrophoneReader:
 
 
 class Mouse:
-    def __init__(self, error_threshold, cam_h, cam_w, move_th, max_signal):
+    def __init__(self, error_threshold, cam_h, cam_w, alpha):
         # Parameters.
         self._error_threshold = error_threshold
-        self._max_signal = max_signal
+        self._alpha = alpha
         screen_height, screen_width = read_monitor()
         self._cam_h = cam_h
         self._cam_w = cam_w
         self._ratio_h = screen_height/cam_h
         self._ratio_w = screen_width/cam_w
-        self._move_threshold = move_th
         initial_x_mouse, initial_y_mouse = mouse.get_position()
         self._last_x_img = initial_x_mouse  # Initialization to grant initial movement.
         self._last_y_img = initial_y_mouse  # Initialization to grant initial movement.
@@ -170,14 +166,8 @@ class Mouse:
             x_screen = x_image*self._ratio_w
             y_screen = y_image*self._ratio_h
 
-            delta_x = x_screen - self._last_x_img
-            delta_y = y_screen - self._last_y_img
-
-            x_to_move = (x_screen*(abs(delta_x) > self._move_threshold) +
-                         self._last_x_img*(abs(delta_x) < self._move_threshold))
-
-            y_to_move = (y_screen*(abs(delta_y) > self._move_threshold) +
-                         self._last_y_img*(abs(delta_y) < self._move_threshold))
+            x_to_move = self._alpha*x_screen + (1 - self._alpha)*self._last_x_img
+            y_to_move = self._alpha*y_screen + (1 - self._alpha)*self._last_y_img
 
             mouse.move(x_to_move, y_to_move, absolute=True)
             if act_from_mic != 0:
@@ -221,15 +211,14 @@ def read_monitor():
 
 
 if __name__ == '__main__':
-    img_window = ImageWindow()
-    vc = cv2.VideoCapture(0)
-
     hue_values = [55, 80]
     err_th = 25
-    mouse_mov_th = 5
-    threshold_frequency = 1500  # 440
+    mouse_mov_th = 0.4
+    threshold_frequency = 1500
     threshold_amplitude = 8000
-    # threshold_amplitude = 10000
+
+    img_window = ImageWindow()
+    vc = cv2.VideoCapture(0)
 
     webcam_reader = WebcamReader(webcam=vc, min_hue=hue_values[0], max_hue=hue_values[1])
     microphone_reader = MicrophoneReader(threshold_frequency, threshold_amplitude)
@@ -237,14 +226,13 @@ if __name__ == '__main__':
     if vc.isOpened():
         rval, frame = webcam_reader.read_webcam()
         mouse_device = Mouse(error_threshold=err_th, cam_h=frame.shape[0],
-                             cam_w=frame.shape[1], move_th=mouse_mov_th, max_signal=100)
+                             cam_w=frame.shape[1], alpha=mouse_mov_th)
     else:
         rval = False
 
     while rval:
-        # cv2.imshow("preview", frame)  # We can avoid it.
         rval, frame = webcam_reader.read_webcam()
-        # webcam_reader.calibrate_hue(frame)
+        # webcam_reader.calibrate_hue(frame)  # You can use this line to calibrate the hue values.
         mic_action, add_to_image = microphone_reader.process_microphone()
         x_center, y_center = webcam_reader.find_centroid(frame)
         mouse_device.act(x_center, y_center, mic_action)
