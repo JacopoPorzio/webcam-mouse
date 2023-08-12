@@ -2,7 +2,7 @@ import cv2
 import mouse
 import numpy as np
 import screeninfo
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import pyaudio
 # import librosa
 import struct
@@ -31,7 +31,7 @@ class WebcamReader:
 
     def find_centroid(self, frame_rgb):
         # Centroid visualization.
-        cv2.namedWindow("cen_vis")
+        # cv2.namedWindow("cen_vis")
         # RGB -> HSV.
         frame_hsv = cv2.cvtColor(frame_rgb, cv2.COLOR_BGR2HSV)
         hue_channel = frame_hsv[:, :, 0]*2
@@ -70,11 +70,11 @@ class WebcamReader:
             img = cv2.line(hue_channel, (cX - 10, cY), (cX + 10, cY), (0, 0, 255), 5)
             img = cv2.line(img, (cX, cY - 10), (cX, cY + 10), (0, 0, 255), 5)
             img = np.flip(img, axis=1)
-            cv2.imshow("cen_vis", img)
+            # cv2.imshow("cen_vis", img)
         else:
             cX = -100
             cY = -100
-            cv2.imshow("cen_vis", hue_channel)
+            # cv2.imshow("cen_vis", hue_channel)
         return cX, cY  # Centroid x and y position in image coordinate.
 
 
@@ -83,7 +83,7 @@ class MicrophoneReader:
         self._format = pyaudio.paInt16
         self._channels = 1
         self._rate = 48000
-        self._chunk = 1024*2
+        self._chunk = int(1024*2.5)
         self._threshold_frequency = th_frequency
         self._threshold_amplitude = th_amplitude
         self._audio = pyaudio.PyAudio()
@@ -102,12 +102,44 @@ class MicrophoneReader:
         int_values = struct.unpack(f"{len(data)//2}h", data)
         return int_values
 
-    def process_microphone(self):
+    def process_microphone_max_amp(self):
         data = self.read_microphone()
         max_amplitude = np.max(data)
         print('Max amplitude: ', max_amplitude)
         action = (max_amplitude > self._threshold_amplitude)*1
-        return action
+        return action, [round(max_amplitude, 2)]
+
+    def process_microphone(self):
+        data = self.read_microphone()
+        dft = np.fft.fft(data) / len(data)
+        dft = abs(dft[range(int(len(data) / 2))])
+        values = np.arange(int(len(data) / 2))
+        time_period = len(data) / self._rate
+        frequencies = values / time_period
+        # Limit the frequencies to meaningful ones.
+        freq_lim = np.argwhere(frequencies > 5000)[0][0]
+        dft = dft[:freq_lim]
+        frequencies = frequencies[:freq_lim]
+        # Find the index of the maximum amplitude in the DFT.
+        max_amplitude_idx = np.argmax(np.abs(dft))
+        # Get the corresponding frequency.
+        max_amplitude_freq = frequencies[max_amplitude_idx]
+        max_amplitude = dft[max_amplitude_idx]
+        # print(f'{max_amplitude_freq} [Hz] and {max_amplitude} [-]')
+        # If frequency < threshold: left click,
+        # if frequency > threshold: right click
+
+        action = (
+                (max_amplitude > self._threshold_amplitude) *
+                (
+                        (max_amplitude_freq <= self._threshold_frequency) * 1 +
+                        (max_amplitude_freq > self._threshold_frequency) * 2
+                )
+        )
+
+        # action = 1 * (max_amplitude > self._threshold_amplitude)
+        # action = 0
+        return action, [round(max_amplitude, 2), round(max_amplitude_freq, 2)]
 
     def kill_stream(self):
         self._stream.stop_stream()
@@ -129,6 +161,7 @@ class Mouse:
         initial_x_mouse, initial_y_mouse = mouse.get_position()
         self._last_x_img = initial_x_mouse  # Initialization to grant initial movement.
         self._last_y_img = initial_y_mouse  # Initialization to grant initial movement.
+        self._last_button_pressed = ' '
 
     def act(self, x_img, y_img, act_from_mic):  # x_image, y_image):
         x_image = self._cam_w - x_img
@@ -149,9 +182,15 @@ class Mouse:
             mouse.move(x_to_move, y_to_move, absolute=True)
             if act_from_mic != 0:
                 button_to_press = (act_from_mic == 1)*'left' + (act_from_mic == 2)*'right'
-                mouse.press(button=button_to_press)
+                if button_to_press != self._last_button_pressed:
+                    if self._last_button_pressed != ' ':
+                        mouse.release(self._last_button_pressed)
+                    mouse.press(button=button_to_press)
+                    self._last_button_pressed = button_to_press
             else:
-                mouse.release()
+                if self._last_button_pressed != ' ':
+                    mouse.release(self._last_button_pressed)
+                    self._last_button_pressed = ' '
             self._last_x_img = x_image
             self._last_y_img = y_image
         else:
@@ -159,20 +198,38 @@ class Mouse:
         return
 
 
+class ImageWindow:
+    def __init__(self):
+        cv2.namedWindow("preview")
+
+    def update_image(self, frm, xc, yc, img_add):
+        # hue_plus_centroid = cv2.circle(hue_channel, (cX, cY), 5, (0, 0, 255), -1)
+        # cv2.imshow("centroid_visualization", hue_plus_centroid)
+        img = cv2.line(frm, (xc - 10, yc), (xc + 10, yc), (0, 0, 255), 5)
+        img = cv2.line(img, (xc, yc - 10), (xc, yc + 10), (0, 0, 255), 5)
+        img = np.flip(img, axis=1)
+        txt = f'Max a: {img_add[0]} [-]'
+        img = cv2.putText(img.astype(int), txt, (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+        if len(img_add) == 2:
+            txt = f'Max f: {img_add[1]} [Hz]'
+            img = cv2.putText(img, txt, (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+        cv2.imshow("preview", img.astype('uint8'))
+
 def read_monitor():
     monitor = screeninfo.get_monitors()[0]
     return monitor.height, monitor.width
 
 
 if __name__ == '__main__':
-    cv2.namedWindow("preview")
+    img_window = ImageWindow()
     vc = cv2.VideoCapture(0)
 
     hue_values = [55, 80]
     err_th = 25
     mouse_mov_th = 5
-    threshold_frequency = 440
-    threshold_amplitude = 10000
+    threshold_frequency = 1500  # 440
+    threshold_amplitude = 8000
+    # threshold_amplitude = 10000
 
     webcam_reader = WebcamReader(webcam=vc, min_hue=hue_values[0], max_hue=hue_values[1])
     microphone_reader = MicrophoneReader(threshold_frequency, threshold_amplitude)
@@ -188,16 +245,10 @@ if __name__ == '__main__':
         # cv2.imshow("preview", frame)  # We can avoid it.
         rval, frame = webcam_reader.read_webcam()
         # webcam_reader.calibrate_hue(frame)
-        mic_action = microphone_reader.process_microphone()
+        mic_action, add_to_image = microphone_reader.process_microphone()
         x_center, y_center = webcam_reader.find_centroid(frame)
         mouse_device.act(x_center, y_center, mic_action)
-        # hue_plus_centroid = cv2.circle(hue_channel, (cX, cY), 5, (0, 0, 255), -1)
-        # cv2.imshow("centroid_visualization", hue_plus_centroid)
-        # img = np.flip(frame, axis=1)
-        img = cv2.line(frame, (x_center - 10, y_center), (x_center + 10, y_center), (0, 0, 255), 5)
-        img = cv2.line(img, (x_center, y_center - 10), (x_center, y_center + 10), (0, 0, 255), 5)
-        img = np.flip(img, axis=1)
-        cv2.imshow("preview", img)
+        img_window.update_image(frame, x_center, y_center, add_to_image)
         key = cv2.waitKey(20)
         if key == 27:
             microphone_reader.kill_stream()
