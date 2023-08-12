@@ -25,10 +25,9 @@ you just have to uncomment ```webcam_reader.calibrate_hue(frame)``` and play wit
 I've used the **HSV color representation**, because in my experience I've always found it the easiest to work with, when it comes to recognise colours.
 
 
-<p align="center>
-    <img src="media/hsv_wheel.jpg" alt=Hue wheel>
-    <em>Hue wheel</em>
-</p>
+| ![HSV wheel](media/hsv_wheel.jpg) |
+|:--:| 
+| *Hue wheel* |
 
 
 Results highly depend on the illumination of the environment - it won't work in pitch darkness, and neither will it on the surface of the Sun - and the webcam quality as well.
